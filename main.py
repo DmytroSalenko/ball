@@ -16,6 +16,8 @@ def locate_ball(pipe):
                     help="path to the (optional) video file")
     ap.add_argument("-b", "--buffer", type=int, default=64,
                     help="max buffer size")
+    ap.add_argument("-p", "--picamera", type=int, default=-1,
+                    help="whether or not the Raspberry Pi camera should be used")
     args = vars(ap.parse_args())
 
     # define the lower and upper boundaries of the "green"
@@ -28,7 +30,7 @@ def locate_ball(pipe):
     # if a video path was not supplied, grab the reference
     # to the webcam
     if not args.get("video", False):
-        vs = VideoStream(src=0).start()
+        vs = VideoStream(usePiCamera=args["picamera"] > 0).start()
 
     # otherwise, grab a reference to the video file
     else:
