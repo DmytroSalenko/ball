@@ -6,7 +6,35 @@ import argparse
 import cv2
 import imutils
 import time
+import os
 from multiprocessing import Pipe, Process
+
+RESOLUTION = (320, 240)
+CENTER = (RESOLUTION[0] / 2, RESOLUTION[1] / 2)  # 160, 120
+CHANNEL_MAP = {11: 17}
+
+
+class PWD:
+    __slots__ = ('pin', 'pos')
+
+    def __init__(self, pin):
+        self.pin = pin
+        self.set(50)
+
+    def set(self, pos):
+        self.pos = pos
+        cmd = 'echo "%d=%.2f" > /dev/pi-blaster' % (CHANNEL_MAP[self.pin], pos/100.)
+        os.system(cmd)
+
+    def move(self, value):
+        position = self.pos + value
+
+        if position > 100:
+            position = 100
+        if position <= 10:
+            position = 10
+        self.set(position)
+
 
 
 def locate_ball(pipe):
@@ -30,7 +58,7 @@ def locate_ball(pipe):
     # if a video path was not supplied, grab the reference
     # to the webcam
     if not args.get("video", False):
-        vs = VideoStream(usePiCamera=args["picamera"] > 0).start()
+        vs = VideoStream(usePiCamera=args["picamera"] > 0, resolution=RESOLUTION).start()
 
     # otherwise, grab a reference to the video file
     else:
@@ -130,22 +158,39 @@ def locate_ball(pipe):
     pipe.close()
 
 
-def print_coords(pipe):
+def print_coords(pipe, y_servo):
+    x_center, y_center = CENTER
+    scr_width, scr_height = RESOLUTION
     while True:
         coords, radius = pipe.recv()
         if coords and radius:
-            if radius > 50:
-                print("alert!")
-            else:
-                print(coords)
+            x, y = coords
+            delta_x = x_center - x
+            delta_y = y_center - y
+
+            rel_x = delta_x / scr_width * 100
+            rel_y = delta_y / scr_height * 100
+
+            print(delta_x, delta_y)
+
+            # x_servo.move(rel_x)
+            y_servo.move(rel_y)
+
+
+
+
 
 
 
 if __name__ == '__main__':
+    y = PWD(11)
     receiver, sender = Pipe(duplex=False)
+
     ball_catcher = Process(target=locate_ball, args=(sender,))
-    coord_writer = Process(target=print_coords, args=(receiver,))
+    coord_writer = Process(target=print_coords, args=(receiver, y))
+
     ball_catcher.start()
     coord_writer.start()
+
     ball_catcher.join()
     coord_writer.join()
